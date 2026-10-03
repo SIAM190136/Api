@@ -1,0 +1,30 @@
+// firestore.rules: Firestore security rules (users + 1-on-1 chats)
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Any signed-in user can see the user list; only you can write your own profile.
+    match /users/{uid} {
+      allow read: if request.auth != null;
+      allow create, update: if request.auth != null && request.auth.uid == uid;
+      allow delete: if false;
+    }
+
+    // Only the two participants (uids inside chatId) can read/write messages.
+    match /chats/{chatId}/messages/{msgId} {
+      allow read: if request.auth != null
+        && request.auth.uid in chatId.split('_');
+
+      allow create: if request.auth != null
+        && request.auth.uid in chatId.split('_')
+        && request.resource.data.keys().hasOnly(['text', 'senderId', 'createdAt'])
+        && request.resource.data.senderId == request.auth.uid
+        && request.resource.data.text is string
+        && request.resource.data.text.size() > 0
+        && request.resource.data.text.size() <= 2000
+        && request.resource.data.createdAt == request.time;
+
+      allow update, delete: if false;
+    }
+  }
+}
